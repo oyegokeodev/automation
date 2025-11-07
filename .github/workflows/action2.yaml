@@ -1,7 +1,10 @@
 name: Terraform Mock
 
 on: 
-  push: ["develop", "main"]
+  push: 
+    branches:
+      - develop
+      - main
   workflow_dispatch:
 
 
