@@ -1,0 +1,59 @@
+name: Echo Inputs to Outputs
+
+on:
+  # This makes it runnable manually
+  workflow_dispatch:
+    inputs:
+      log_message:
+        description: 'The message to pass'
+        required: true
+        default: 'Hello, GitHub Actions!'
+        type: string
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      enable_verbose:
+        description: 'Enable verbose logging?'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  # JOB 1: Takes inputs and sets them as job outputs
+  set-values:
+    runs-on: ubuntu-latest
+    # This matches the job outputs to the specific step outputs below
+    outputs:
+      final_message: ${{ steps.exporter.outputs.out_message }}
+      final_env: ${{ steps.exporter.outputs.out_env }}
+      final_verbose: ${{ steps.exporter.outputs.out_verbose }}
+    steps:
+      - name: Write inputs to GITHUB_OUTPUT
+        id: exporter
+        run: |
+          echo "Setting outputs..."
+          # The ${{ inputs. ... }} context works for both
+          # workflow_dispatch and workflow_call triggers
+          echo "out_message=${{ inputs.log_message }}" >> "$GITHUB_OUTPUT"
+          echo "out_env=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          echo "out_verbose=${{ inputs.enable_verbose }}" >> "$GITHUB_OUTPUT"
+
+  # JOB 2: Reads the outputs from Job 1 (to prove it works internally)
+  verify-outputs:
+    needs: set-values
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read outputs from previous job
+        run: |
+          echo "--------------------------------------"
+          echo "📥 Received from previous job:"
+          echo "--------------------------------------"
+          echo "Message: ${{ needs.set-values.outputs.final_message }}"
+          echo "Environment: ${{ needs.set-values.outputs.final_env }}"
+          echo "Verbose: ${{ needs.set-values.outputs.final_verbose }}"
