@@ -1,6 +1,7 @@
 name: Echo Inputs to Outputs
 
 on:
+  push:
   # This makes it runnable manually
   workflow_dispatch:
     inputs:
