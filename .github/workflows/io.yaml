@@ -35,6 +35,9 @@ jobs:
       - name: Write inputs to GITHUB_OUTPUT
         id: exporter
         run: |
+          echo "Setting outputs..."
+          echo "out_message=${{ inputs.log_message }}" >> "$GITHUB_OUTPUT"
+          echo "out_verbose=${{ inputs.enable_verbose }}" >> "$GITHUB_OUTPUT"
           echo "out_env=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
 
   # JOB 2: Reads the outputs from Job 1 (to prove it works internally)
