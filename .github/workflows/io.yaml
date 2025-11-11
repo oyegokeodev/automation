@@ -22,7 +22,7 @@ on:
         description: 'Enable verbose logging?'
         required: false
         default: false
-        type: boolean
+        type: string
 
 jobs:
   # JOB 1: Takes inputs and sets them as job outputs
@@ -38,11 +38,11 @@ jobs:
         id: exporter
         run: |
           echo "Setting outputs..."
-          # The ${{ inputs. ... }} context works for both
+          # The ${{ inputs. ... +}} context works for both
           # workflow_dispatch and workflow_call triggers
           echo "out_message=${{ inputs.log_message }}" >> "$GITHUB_OUTPUT"
-          echo "out_env=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
           echo "out_verbose=${{ inputs.enable_verbose }}" >> "$GITHUB_OUTPUT"
+          echo "out_env=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
 
   # JOB 2: Reads the outputs from Job 1 (to prove it works internally)
   verify-outputs:
