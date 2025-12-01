@@ -1,7 +1,10 @@
 variable "vpc_cidr" {
   description = "The IP range for the VPC"
   type        = string
-  default     = "10.0.0.0/22"
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "The vpc_cidr value must be a valid CIDR block."
+  }
 }
 
 variable "project_name" {
@@ -19,11 +22,39 @@ variable "availability_zone" {
 variable "public_subnet_cidr" {
   description = "The list of public subnet CIDRs"
   type = list(string)
-  default = [ "10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24" ]
 }
 
 variable "private_subnet_cidr" {
   description = "The list of private subnet CIDRs"
   type = list(string)
-  default = [ "10.0.2.0/24", "10.0.3.0/24", "10.0.4.0/24" ]
+}
+
+variable "public_subnet_tags" {
+  description = "Additional tags for the public subnets"
+  type        = map(string)
+  default     = {}
+}
+
+variable "private_subnet_tags" {
+  description = "Additional tags for the private subnets"
+  type        = map(string)
+  default     = {}
+}
+
+variable "create_igw" {
+  description = "Controls if an Internet Gateway is created for public subnets"
+  type        = bool
+  default     = true
+}
+
+variable "enable_nat_gateway" {
+  description = "Controls if a NAT Gateway is created for private subnets"
+  type        = bool
+  default     = true
+}
+
+variable "single_nat_gateway" {
+  description = "Controls if a single NAT Gateway is used for all private subnets (true) or one per AZ (false)"
+  type        = bool
+  default     = true
 }

@@ -6,9 +6,16 @@ resource "aws_vpc" "this" {
   tags = {
     Name = "${var.project_name}-vpc" #interpolating variable for naming - variable plus static string 
   }
+
+  lifecycle {
+    ignore_changes = [
+      tags,
+    ]
+  }
 }
 
 resource "aws_internet_gateway" "igw" {
+    count = var.create_igw ? 1 : 0
     vpc_id = aws_vpc.this.id
 
     tags = {
@@ -16,66 +23,96 @@ resource "aws_internet_gateway" "igw" {
     }
 }
 
+resource "aws_route_table" "public_rt" {
+  vpc_id = aws_vpc.this.id
+
+  tags = {
+    Name = "${var.project_name}-public-rt"
+  }
+}
+
+resource "aws_route" "public_internet_gateway" {
+  count                  = var.create_igw ? 1 : 0
+  route_table_id         = aws_route_table.public_rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.igw[0].id
+}
+
 resource "aws_subnet" "public" {
-  count = length(var.availability_zone)
+  count = length(var.public_subnet_cidr)
   vpc_id            = aws_vpc.this.id
     cidr_block        = var.public_subnet_cidr[count.index]
     availability_zone = var.availability_zone[count.index]
     map_public_ip_on_launch = true
-    tags = {
+    tags = merge(
+      {
         Name = "${var.project_name}-public-subnet-${count.index + 1}"
-        "kubernetes.io/role/elb" = "1"
-    }
+      },
+      var.public_subnet_tags
+    )
+}
+
+resource "aws_route_table_association" "public_assoc" {
+  count          = length(aws_subnet.public)
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public_rt.id
 }
 
 resource "aws_eip" "nat" {
+  count = var.enable_nat_gateway && length(var.private_subnet_cidr) > 0 ? (var.single_nat_gateway ? 1 : length(var.private_subnet_cidr)) : 0
   domain = "vpc"
   depends_on = [aws_internet_gateway.igw]
 
     tags = {
-        Name = "${var.project_name}-nat-eip"
+        Name = "${var.project_name}-nat-eip-${count.index + 1}"
     }
   
 }
 
 resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id
+  count = var.enable_nat_gateway && length(var.private_subnet_cidr) > 0 ? (var.single_nat_gateway ? 1 : length(var.private_subnet_cidr)) : 0
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
 
   tags = {
-    Name = "${var.project_name}-nat-gateway"
+    Name = "${var.project_name}-nat-gateway-${count.index + 1}"
   }
 }
 
 resource "aws_subnet" "private" {
-  count = length(var.availability_zone)
+  count = length(var.private_subnet_cidr)
   vpc_id            = aws_vpc.this.id
   cidr_block        = var.private_subnet_cidr[count.index]
   availability_zone = var.availability_zone[count.index]
   
-  tags = {
-      Name = "${var.project_name}-private-subnet-${count.index + 1}"
-      "kubernetes.io/role/internal-elb" = "1"
-    }
+  tags = merge(
+      {
+        Name = "${var.project_name}-private-subnet-${count.index + 1}"
+      },
+      var.private_subnet_tags
+    )
 }
 
 resource "aws_route_table" "private_rt" {
+  count = length(var.private_subnet_cidr)
   vpc_id = aws_vpc.this.id
 
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
-  }
-
   tags = {
-    Name = "${var.project_name}-private-rt"
+    Name = "${var.project_name}-private-rt-${count.index + 1}"
   }
+}
+
+resource "aws_route" "private_nat_gateway" {
+  count                  = var.enable_nat_gateway && length(var.private_subnet_cidr) > 0 ? length(var.private_subnet_cidr) : 0
+  route_table_id         = aws_route_table.private_rt[count.index].id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = var.single_nat_gateway ? aws_nat_gateway.main[0].id : aws_nat_gateway.main[count.index].id
 }
 
 resource "aws_route_table_association" "private_assoc" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private_rt.id
+  route_table_id = aws_route_table.private_rt[count.index].id
 }
 
 data "aws_availability_zones" "available" {
